@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安全跳转中...</title>
+    <style>
+        body { font-family: -apple-system, system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f9f9f9; }
+        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: center; max-width: 80%; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #07c160; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 10px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #msg { color: #666; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div id="loader" class="loader"></div>
+        <div id="msg">正在验证访问权限...</div>
+    </div>
+
+    <script>
+        // ======= 配置区域 =======
+        const GIST_RAW_URL = "https://gist.githubusercontent.com/Ayang000/318d82f9f3f8c4df8a049fe15b50811b/raw/5cf620d717910b17735378fdf446344fc64818b8/links.json";
+        const NAMESPACE = "your_unique_namespace_2024"; // 随便起个英文名，代表你的应用库
+        // =======================
+
+        async function start() {
+            const msgNode = document.getElementById('msg');
+            const loader = document.getElementById('loader');
+            
+            // 1. 获取 URL 中的 id 参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const id = urlParams.get('id');
+
+            if (!id) {
+                msgNode.innerHTML = "❌ 访问参数缺失";
+                loader.style.display = 'none';
+                return;
+            }
+
+            try {
+                // 2. 读取 Gist 配置（加时间戳防止缓存）
+                const configRes = await fetch(GIST_RAW_URL + "?t=" + new Date().getTime());
+                const configData = await configRes.json();
+                const item = configData[id];
+
+                if (!item) {
+                    msgNode.innerHTML = "❌ 该链接不存在或已失效";
+                    loader.style.display = 'none';
+                    return;
+                }
+
+                // 3. 调用 CountAPI 进行计数
+                // 注意：hit 接口会自动给该 key 的数值 +1
+                const countRes = await fetch(`https://api.countapi.xyz/hit/${NAMESPACE}/${id}`);
+                if (!countRes.ok) throw new Error("计次服务异常");
+                const countData = await countRes.json();
+                const currentCount = countData.value;
+
+                // 4. 判断次数
+                if (currentCount <= item.limit) {
+                    msgNode.innerHTML = "✅ 验证通过，正在进入小程序...";
+                    // 延时 0.5 秒执行跳转，体验更好
+                    setTimeout(() => {
+                        window.location.href = item.url;
+                    }, 500);
+                } else {
+                    msgNode.innerHTML = "<strong style='color:red'>⚠️ 抱歉，该二维码扫码次数已达上限</strong>";
+                    loader.style.display = 'none';
+                }
+
+            } catch (err) {
+                console.error(err);
+                msgNode.innerHTML = "⚠️ 系统繁忙，请稍后再试";
+                loader.style.display = 'none';
+            }
+        }
+
+        start();
+    </script>
+</body>
+</html>
